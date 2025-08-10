@@ -1,4 +1,7 @@
+import { db } from '../db';
+import { usersTable } from '../db/schema';
 import { type SafeUser, type SeedUser } from '../schema';
+import { eq } from 'drizzle-orm';
 
 // Demo seed data for the three user roles
 const DEMO_USERS: SeedUser[] = [
@@ -22,13 +25,57 @@ const DEMO_USERS: SeedUser[] = [
     }
 ];
 
+// Simple hash function for demo purposes (in production, use bcrypt or similar)
+const hashPassword = async (password: string): Promise<string> => {
+    // Using Bun's built-in hashing for demo purposes
+    const hasher = new Bun.CryptoHasher('sha256');
+    hasher.update(password + 'salt_demo_2024'); // Add salt for basic security
+    return hasher.digest('hex');
+};
+
 export const seedDemoUsers = async (): Promise<SafeUser[]> => {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is seeding the database with demo users for each role.
-    // Should create admin, reseller, and regular user accounts with known credentials.
-    // Passwords should be hashed before storing in the database.
-    // Returns the created users without password hashes.
-    return [];
+    try {
+        const createdUsers: SafeUser[] = [];
+
+        for (const demoUser of DEMO_USERS) {
+            // Check if user already exists
+            const existingUser = await db.select()
+                .from(usersTable)
+                .where(eq(usersTable.email, demoUser.email))
+                .execute();
+
+            if (existingUser.length > 0) {
+                // User already exists, return the existing user (without password)
+                const { password_hash, ...safeUser } = existingUser[0];
+                createdUsers.push(safeUser);
+                continue;
+            }
+
+            // Hash the password
+            const password_hash = await hashPassword(demoUser.password);
+
+            // Insert the new user
+            const result = await db.insert(usersTable)
+                .values({
+                    username: demoUser.username,
+                    email: demoUser.email,
+                    password_hash,
+                    role: demoUser.role
+                })
+                .returning()
+                .execute();
+
+            // Remove password hash before returning
+            const newUser = result[0];
+            const { password_hash: _, ...safeUser } = newUser;
+            createdUsers.push(safeUser);
+        }
+
+        return createdUsers;
+    } catch (error) {
+        console.error('Demo user seeding failed:', error);
+        throw error;
+    }
 };
 
 export const getDemoUsers = (): SeedUser[] => {

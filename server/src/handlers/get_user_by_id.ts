@@ -1,8 +1,35 @@
+import { db } from '../db';
+import { usersTable } from '../db/schema';
+import { eq } from 'drizzle-orm';
 import { type SafeUser } from '../schema';
 
 export const getUserById = async (id: number): Promise<SafeUser | null> => {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching a single user by ID from the database.
-    // Returns user data without password hash for security, or null if not found.
-    return null;
+  try {
+    // Query user by ID
+    const result = await db.select()
+      .from(usersTable)
+      .where(eq(usersTable.id, id))
+      .execute();
+
+    // Return null if user not found
+    if (result.length === 0) {
+      return null;
+    }
+
+    const user = result[0];
+
+    // Return safe user object (without password_hash)
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      is_active: user.is_active,
+      created_at: user.created_at,
+      updated_at: user.updated_at
+    };
+  } catch (error) {
+    console.error('Get user by ID failed:', error);
+    throw error;
+  }
 };
